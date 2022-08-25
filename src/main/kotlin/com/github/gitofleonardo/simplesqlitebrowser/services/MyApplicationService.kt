@@ -1,6 +1,6 @@
-package org.jetbrains.plugins.template.services
+package com.github.gitofleonardo.simplesqlitebrowser.services
 
-import org.jetbrains.plugins.template.MyBundle
+import com.github.gitofleonardo.simplesqlitebrowser.MyBundle
 
 class MyApplicationService {
 
