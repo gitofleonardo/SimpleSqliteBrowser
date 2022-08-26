@@ -2,17 +2,18 @@
 <idea-plugin>
     <id>com.github.gitofleonardo.simplesqlitebrowser</id>
     <name>SimpleSqliteBrowser</name>
-    <vendor>gitofleonardo</vendor>
+    <vendor email="hvangchengxi@outlook.com" url="https://github.com/gitofleonardo">gitofleonardo</vendor>
+    <version>1.0.0</version>
+    <description>Browsing Sqlite database file, designed for directly opening `.db` file in IDE.</description>
 
     <depends>com.intellij.modules.platform</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="com.github.gitofleonardo.simplesqlitebrowser.services.MyApplicationService"/>
-        <projectService serviceImplementation="com.github.gitofleonardo.simplesqlitebrowser.services.MyProjectService"/>
+        <fileType name="Sqlite Database File"
+                implementationClass="com.github.gitofleonardo.simplesqlitebrowser.sqlite.SqliteFileType"
+                fieldName="INSTANCE"
+                language="sqlite"
+                extensions="db"/>
+        <fileEditorProvider implementation="com.github.gitofleonardo.simplesqlitebrowser.provider.SqliteEditorProvider"/>
     </extensions>
-
-    <applicationListeners>
-        <listener class="com.github.gitofleonardo.simplesqlitebrowser.listeners.MyProjectManagerListener"
-                  topic="com.intellij.openapi.project.ProjectManagerListener"/>
-    </applicationListeners>
 </idea-plugin>
