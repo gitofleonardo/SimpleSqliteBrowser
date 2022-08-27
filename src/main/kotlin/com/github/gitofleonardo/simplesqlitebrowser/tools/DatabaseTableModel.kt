@@ -1,5 +1,6 @@
 package com.github.gitofleonardo.simplesqlitebrowser.tools
 
+import com.github.gitofleonardo.simplesqlitebrowser.data.DbRow
 import com.github.gitofleonardo.simplesqlitebrowser.data.DbTableInstance
 import java.sql.Types
 import javax.swing.JTable
@@ -19,16 +20,7 @@ class DatabaseTableModel(
         return dbTableData.columns[columnIndex].name
     }
 
-    override fun getColumnClass(columnIndex: Int): Class<*> {
-        return when (dbTableData.columns[columnIndex].type) {
-            Types.INTEGER, Types.BIGINT, Types.SMALLINT, Types.TINYINT -> {
-                Int::class.java
-            }
-            Types.FLOAT -> Float::class.java
-            Types.DOUBLE -> Double::class.java
-            else -> String::class.java
-        }
-    }
+    override fun getColumnClass(columnIndex: Int): Class<*> = DbRow.RowData::class.java
 
     override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = false
 
