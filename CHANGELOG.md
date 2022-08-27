@@ -2,7 +2,7 @@
 
 # SimpleSqliteBrowser Changelog
 
-## [1.0.0]
+## [Unreleased]
 ### Added
 - View structures of all tables
 - View columns and rows data of table
