@@ -3,7 +3,6 @@
     <id>com.github.gitofleonardo.simplesqlitebrowser</id>
     <name>SimpleSqliteBrowser</name>
     <vendor email="hvangchengxi@outlook.com" url="https://github.com/gitofleonardo">gitofleonardo</vendor>
-    <version>1.0.0</version>
     <description>Browsing Sqlite database file, designed for directly opening `.db` file in IDE.</description>
 
     <depends>com.intellij.modules.platform</depends>
