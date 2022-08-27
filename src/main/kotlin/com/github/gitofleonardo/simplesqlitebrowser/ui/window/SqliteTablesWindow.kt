@@ -1,9 +1,11 @@
 package com.github.gitofleonardo.simplesqlitebrowser.ui.window
 
-import com.github.gitofleonardo.simplesqlitebrowser.addOnClickListener
-import com.github.gitofleonardo.simplesqlitebrowser.addOnItemChangeListener
-import com.github.gitofleonardo.simplesqlitebrowser.addOnKeyEventListener
+import com.github.gitofleonardo.simplesqlitebrowser.*
+import com.github.gitofleonardo.simplesqlitebrowser.data.DbRow
 import com.github.gitofleonardo.simplesqlitebrowser.data.DbTableInstance
+import com.github.gitofleonardo.simplesqlitebrowser.model.SqliteModel
+import com.github.gitofleonardo.simplesqlitebrowser.tools.DatabaseTableCellRenderer
+import com.github.gitofleonardo.simplesqlitebrowser.tools.DatabaseTableModel
 import com.github.gitofleonardo.simplesqlitebrowser.ui.TabbedChildView
 import com.github.gitofleonardo.simplesqlitebrowser.ui.viewmodel.TableViewModel
 import com.intellij.openapi.ui.ComboBox
@@ -14,17 +16,15 @@ import com.intellij.uiDesigner.core.GridConstraints
 import com.intellij.uiDesigner.core.GridLayoutManager
 import com.intellij.uiDesigner.core.Spacer
 import org.jdesktop.swingx.combobox.ListComboBoxModel
-import java.awt.BorderLayout
-import java.awt.Dimension
-import java.awt.FlowLayout
-import java.awt.Insets
+import java.awt.*
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
-import java.awt.event.KeyListener
+import java.awt.image.BufferedImage
+import java.sql.Blob
+import java.sql.Types
 import java.text.NumberFormat
 import javax.swing.*
-import javax.swing.event.TableModelListener
-import javax.swing.table.TableModel
+import javax.swing.table.TableRowSorter
 import javax.swing.text.NumberFormatter
 
 private const val TITLE = "Tables"
@@ -51,12 +51,18 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
     private lateinit var refreshButton: JButton
     private lateinit var dataTable: JBTable
     private lateinit var toolbarContainer: JPanel
+    private lateinit var bottomToolPanel: JPanel
+    private lateinit var bottomInfoPanel: JPanel
+    private lateinit var dbValueInfoLabel: JLabel
+    private lateinit var dbValueField: JTextArea
+    private lateinit var imageLabel: JLabel
+    private lateinit var dataHolderPanel: JPanel
     // @}
 
     private val emptyTablePage = DbTableInstance()
 
     private val viewModel = TableViewModel(dbFile)
-    private var tableModel = DatabaseTableModel(emptyTablePage)
+    private lateinit var tableModel: DatabaseTableModel
     private val tables = mutableListOf<String>()
     private val tableComboModel = ListComboBoxModel(tables)
 
@@ -96,6 +102,9 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         refreshButton.addOnClickListener {
             viewModel.resetTableData()
         }
+        dataTable.addOnTouchListener {
+            updateTableSelection()
+        }
     }
 
     private fun initObservers() {
@@ -118,10 +127,55 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         }
     }
 
+    private fun updateTableSelection() {
+        val row = dataTable.selectedRow
+        val column = dataTable.selectedColumn
+        if (!tableModel.checkIndexRange(row, column)) {
+            return
+        }
+        val data = tableModel.getValueAt(dataTable.convertRowIndexToModel(row), dataTable.convertColumnIndexToModel(column)) as DbRow.RowData
+        when (data.type) {
+            Types.BLOB -> {
+                val blob = data.data as ByteArray? ?: byteArrayOf()
+                setCurrentImageInfo(blob)
+            }
+            else -> {
+                setCurrentTextInfo(data.data.toStringOr())
+            }
+        }
+        updateDataDisplayPanel(data.type)
+    }
+
+    private fun setCurrentImageInfo(bytes: ByteArray) {
+        val image = ImageIcon(bytes)
+        imageLabel.icon = image
+
+        dbValueInfoLabel.text = "Size: ${bytes.toSizeString()}"
+    }
+
+    private fun setCurrentTextInfo(text: String) {
+        dbValueField.text = text
+
+        dbValueInfoLabel.text = "Length: ${text.length}"
+    }
+
+    private fun updateDataDisplayPanel(dataType: Int) {
+        when (dataType) {
+            Types.BLOB -> {
+                imageLabel.isVisible = true
+                dbValueField.isVisible = false
+            }
+            else -> {
+                imageLabel.isVisible = false
+                dbValueField.isVisible = true
+            }
+        }
+    }
+
     // UI configuration begin {@
     private fun setupUI() {
         rootPanel = JPanel()
-        rootPanel.layout = GridLayoutManager(2, 1, Insets(0, 0, 0, 0),
+        rootPanel.layout = GridLayoutManager(3, 1, Insets(0, 0, 0, 0),
             -1, -1)
         toolbarContainer = JPanel()
         toolbarContainer.layout = FlowLayout(FlowLayout.LEFT, 5, 5)
@@ -148,7 +202,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         panelPageJump.add(pageTitle)
         pageInputField = JFormattedTextField(NumberFormatter(NumberFormat.getIntegerInstance()).apply {
             allowsInvalid = false
-            minimum = 0
+            minimum = 1
         })
         pageInputField.preferredSize = Dimension(100, 30)
         pageInputField.text = "0"
@@ -185,7 +239,12 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         refreshButton = JButton()
         refreshButton.text = "Refresh"
         toolbarContainer.add(refreshButton)
-        dataTable = JBTable(tableModel)
+        dataTable = JBTable()
+        tableModel = DatabaseTableModel(emptyTablePage)
+        dataTable.model = tableModel
+        dataTable.autoCreateRowSorter = true
+        dataTable.setDefaultRenderer(Any::class.java, DatabaseTableCellRenderer())
+        dataTable.tableHeader.reorderingAllowed = false
         dataTable.maximumSize = Dimension(40, 40)
         dataTable.fillsViewportHeight = true
         dataTable.autoResizeMode = JTable.AUTO_RESIZE_OFF
@@ -197,42 +256,34 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
                 GridConstraints.SIZEPOLICY_CAN_SHRINK or GridConstraints.SIZEPOLICY_WANT_GROW,
                 GridConstraints.SIZEPOLICY_CAN_SHRINK or GridConstraints.SIZEPOLICY_WANT_GROW,
             null, null, null, 0, true))
+
+        bottomToolPanel = JPanel()
+        bottomToolPanel.layout = BorderLayout(0, 0)
+        rootPanel.add(bottomToolPanel, GridConstraints(2, 0, 1, 1,
+                GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH,
+                GridConstraints.SIZEPOLICY_CAN_SHRINK or GridConstraints.SIZEPOLICY_CAN_GROW,
+                GridConstraints.SIZEPOLICY_CAN_SHRINK or GridConstraints.SIZEPOLICY_CAN_GROW,
+                null, null, null, 0, false))
+        dataHolderPanel = JPanel()
+        dataHolderPanel.layout = CardLayout(0, 0)
+        dataHolderPanel.preferredSize = Dimension(400, 180)
+        bottomToolPanel.add(dataHolderPanel, BorderLayout.WEST)
+        imageLabel = JLabel()
+        imageLabel.isEnabled = true
+        imageLabel.isVisible = false
+        dataHolderPanel.add(imageLabel, "Card1")
+        dbValueField = JTextArea()
+        dbValueField.isVisible = true
+        dbValueField.lineWrap = true
+        dataHolderPanel.add(dbValueField, "Card2")
+        bottomInfoPanel = JPanel()
+        bottomInfoPanel.layout = FlowLayout(FlowLayout.LEFT, 5, 5)
+        bottomToolPanel.add(bottomInfoPanel, BorderLayout.CENTER)
+        dbValueInfoLabel = JLabel()
+        bottomInfoPanel.add(dbValueInfoLabel)
+
         layout = BorderLayout()
         add(rootPanel)
     }
     // @}
-}
-
-private class DatabaseTableModel(
-    private val dbTableData: DbTableInstance
-) : TableModel {
-    private val modelListeners: ArrayList<TableModelListener?> = ArrayList()
-
-    override fun getRowCount(): Int = dbTableData.rows.size
-
-    override fun getColumnCount(): Int = dbTableData.columns.size
-
-    override fun getColumnName(columnIndex: Int): String {
-        return dbTableData.columns[columnIndex].name
-    }
-
-    override fun getColumnClass(columnIndex: Int): Class<*> = String::class.java
-
-    override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = true
-
-    override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
-        return dbTableData.rows[rowIndex].rowData[columnIndex]
-    }
-
-    override fun setValueAt(aValue: Any?, rowIndex: Int, columnIndex: Int) {
-        // TODO Modify database
-    }
-
-    override fun addTableModelListener(l: TableModelListener?) {
-        modelListeners.add(l)
-    }
-
-    override fun removeTableModelListener(l: TableModelListener?) {
-        modelListeners.remove(l)
-    }
 }

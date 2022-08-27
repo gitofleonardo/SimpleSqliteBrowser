@@ -1,15 +1,16 @@
 package com.github.gitofleonardo.simplesqlitebrowser
 
 import com.github.gitofleonardo.simplesqlitebrowser.mvvm.ViewModel
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.ui.ComboBox
 import kotlinx.coroutines.*
 import java.awt.event.*
 import javax.swing.JComponent
 import javax.swing.text.JTextComponent
+import kotlin.coroutines.CoroutineContext
 
-val ViewModel.viewModelScope
+val ViewModel.viewModelScope: CoroutineScope
     get() = MainScope()
-
 
 inline fun <reified T> ComboBox<T>.addOnItemChangeListener(crossinline listener: (T) -> Unit) {
     addItemListener {
@@ -42,16 +43,47 @@ fun JComponent.addOnClickListener(listener:(MouseEvent) -> Unit) {
             e?.let(listener)
         }
 
-        override fun mousePressed(e: MouseEvent?) {
-        }
+        override fun mousePressed(e: MouseEvent?) {}
 
-        override fun mouseReleased(e: MouseEvent?) {
-        }
+        override fun mouseReleased(e: MouseEvent?) {}
 
-        override fun mouseEntered(e: MouseEvent?) {
-        }
+        override fun mouseEntered(e: MouseEvent?) {}
 
-        override fun mouseExited(e: MouseEvent?) {
-        }
+        override fun mouseExited(e: MouseEvent?) {}
     })
+}
+
+fun JComponent.addOnTouchListener(listener: (MouseEvent) -> Unit) {
+    addMouseListener(object : MouseListener {
+        override fun mouseClicked(e: MouseEvent?) {}
+
+        override fun mousePressed(e: MouseEvent?) {
+            e?.let(listener)
+        }
+
+        override fun mouseReleased(e: MouseEvent?) {}
+
+        override fun mouseEntered(e: MouseEvent?) {}
+
+        override fun mouseExited(e: MouseEvent?) {}
+    })
+}
+
+fun Any?.toStringOr(placeHolder: String = ""): String {
+    return this?.toString() ?: placeHolder
+}
+
+private const val BYTE_SIZE = 1024
+private const val K_BYTE_SIZE = 1024 * 1024
+private const val M_BYTE_SIZE = 1024 * 1024 * 1024
+
+fun ByteArray.toSizeString(): String {
+    val siz = size
+    return if (siz <= BYTE_SIZE) {
+        "$siz Bytes"
+    } else if (siz <= K_BYTE_SIZE) {
+        String.format("%.2f KB", siz / BYTE_SIZE.toFloat())
+    } else{
+        String.format("%.2f MB", siz / K_BYTE_SIZE.toFloat())
+    }
 }

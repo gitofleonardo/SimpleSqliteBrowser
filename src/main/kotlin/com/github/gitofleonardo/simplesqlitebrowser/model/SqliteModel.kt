@@ -7,11 +7,13 @@ import com.github.gitofleonardo.simplesqlitebrowser.data.SqliteMetadata
 import com.intellij.openapi.vfs.VirtualFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.sql.Types
 
 object SqliteModel {
-    private const val NULL = "null"
+    const val NULL = "null"
+    const val BLOB = "BLOB"
 
-    suspend fun loadMetaData(file: VirtualFile) : SqliteMetadata = withContext(context = Dispatchers.IO) {
+    fun loadMetaData(file: VirtualFile) : SqliteMetadata {
         val connection = ConnectionManager.createConnection(file)
         val metadata = SqliteMetadata()
         connection?.let {
@@ -21,10 +23,10 @@ object SqliteModel {
             metadata.driverVersion = md.driverVersion
         }
         ConnectionManager.disposeConnection(connection)
-        metadata
+        return metadata
     }
 
-    suspend fun loadTables(file: VirtualFile) : List<String> = withContext(context = Dispatchers.IO){
+    fun loadTables(file: VirtualFile) : List<String> {
         val connection = ConnectionManager.createConnection(file)
         val result = mutableListOf<String>()
         connection?.let {
@@ -35,30 +37,40 @@ object SqliteModel {
             }
         }
         ConnectionManager.disposeConnection(connection)
-        result
+        return result
     }
 
-    suspend fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) : DbTableInstance = withContext(context = Dispatchers.IO) {
+    fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) : DbTableInstance {
         val columns = mutableListOf<DbColumn>()
         val rows = mutableListOf<DbRow>()
         var totalCount = 0
         val connection = ConnectionManager.createConnection(file)
-        if (connection != null) {
-            val columnResult = connection.metaData.getColumns(null, null, tableName, null)
+        connection?.let {
+            val columnResult = it.metaData.getColumns(null, null, tableName, null)
             while (columnResult.next()) {
                 val columnName = columnResult.getString("COLUMN_NAME")
-                columns.add(DbColumn(columnName))
+                val type = columnResult.getInt("DATA_TYPE")
+                columns.add(DbColumn(columnName, type))
             }
 
-            val statement = connection.createStatement()
+            val statement = it.createStatement()
             val rowResult = statement.executeQuery("SELECT * FROM $tableName LIMIT $pageCount OFFSET ${pageCount * (page - 1)}")
+            val rowMeta = rowResult.metaData
             while (rowResult.next()) {
-                val dbRows = mutableListOf<String>()
+                val dbRows = mutableListOf<DbRow.RowData>()
                 val dbRow = DbRow(dbRows)
-                for (column in columns) {
-                    val obj = rowResult.getObject(column.name)
-                    val columnData = obj ?: NULL
-                    dbRows.add(columnData.toString())
+                for (columnIndex in columns.indices) {
+                    val type = rowMeta.getColumnType(columnIndex + 1)
+                    val typeName = rowMeta.getColumnTypeName(columnIndex + 1)
+                    val rowData = when (type) {
+                        Types.BLOB -> {
+                            DbRow.RowData(type, typeName, rowResult.getBytes(columnIndex + 1))
+                        }
+                        else -> {
+                            DbRow.RowData(type, typeName, rowResult.getObject(columnIndex + 1))
+                        }
+                    }
+                    dbRows.add(rowData)
                 }
                 rows.add(dbRow)
             }
@@ -67,6 +79,7 @@ object SqliteModel {
             countResult.next()
             totalCount = countResult.getInt(1)
         }
-        DbTableInstance(columns, rows, rows.size, page, totalCount)
+        ConnectionManager.disposeConnection(connection)
+        return DbTableInstance(columns, rows, rows.size, page, totalCount)
     }
 }

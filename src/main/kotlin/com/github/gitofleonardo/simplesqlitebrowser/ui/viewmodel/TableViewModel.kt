@@ -69,18 +69,14 @@ class TableViewModel(private val dbFile: VirtualFile) : ViewModel {
     }
 
     private fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) {
-        viewModelScope.launch {
-            val result = model.loadTableData(file, tableName, pageCount, page)
-            totalCount = result.totalCount
-            totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
-            tableData.value = result
-        }
+        val result = model.loadTableData(file, tableName, pageCount, page)
+        totalCount = result.totalCount
+        totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
+        tableData.value = result
     }
 
     fun loadTables() {
-        viewModelScope.launch {
-            val tbs = model.loadTables(dbFile)
-            tables.value = tbs
-        }
+        val tbs = model.loadTables(dbFile)
+        tables.value = tbs
     }
 }
