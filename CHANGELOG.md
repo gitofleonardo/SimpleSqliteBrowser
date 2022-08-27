@@ -2,6 +2,10 @@
 
 # SimpleSqliteBrowser Changelog
 
-## [Unreleased]
+## [1.0.0]
+
 ### Added
-- Initial scaffold created from [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template)
+
+- View structures of all tables
+- View columns and rows data of table
+- Blob icon can be previewed as image
