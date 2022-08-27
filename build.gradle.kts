@@ -27,7 +27,8 @@ dependencies {
     // Sqlite JDBC dependency
     implementation("org.xerial:sqlite-jdbc:3.39.2.1")
     // https://mvnrepository.com/artifact/org.jetbrains.kotlinx/kotlinx-coroutines-swing
-    runtimeOnly("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.6.4")
 }
 
 // Set the JVM language level used to compile sources and generate files - Java 11 is required since 2020.3

@@ -1,19 +1,17 @@
 package com.github.gitofleonardo.simplesqlitebrowser.model
 
-import com.github.gitofleonardo.simplesqlitebrowser.data.DbColumn
-import com.github.gitofleonardo.simplesqlitebrowser.data.DbRow
-import com.github.gitofleonardo.simplesqlitebrowser.data.DbTableInstance
-import com.github.gitofleonardo.simplesqlitebrowser.data.SqliteMetadata
+import com.github.gitofleonardo.simplesqlitebrowser.data.*
 import com.intellij.openapi.vfs.VirtualFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.sql.ResultSet
 import java.sql.Types
 
 object SqliteModel {
     const val NULL = "null"
     const val BLOB = "BLOB"
 
-    fun loadMetaData(file: VirtualFile) : SqliteMetadata {
+    suspend fun loadMetaData(file: VirtualFile) : SqliteMetadata = withContext(context = Dispatchers.IO) {
         val connection = ConnectionManager.createConnection(file)
         val metadata = SqliteMetadata()
         connection?.let {
@@ -21,12 +19,29 @@ object SqliteModel {
             metadata.isValidSqliteDatabase = true
             metadata.version = md.databaseMajorVersion
             metadata.driverVersion = md.driverVersion
+
+            val tables = ArrayList<DbTable>()
+            val tableResult = md.getTables(null, null, "%", null)
+            while (tableResult.next()) {
+                val tb = DbTable()
+                tb.tableName = tableResult.getString("TABLE_NAME")
+                val columnResult = md.getColumns(null, null, tb.tableName, null)
+                while (columnResult.next()) {
+                    val columnName = columnResult.getString("COLUMN_NAME")
+                    val type = columnResult.getInt("DATA_TYPE")
+                    val typeName = columnResult.getString("TYPE_NAME")
+                    val schema = getAllSchema(columnResult)
+                    tb.columns.add(DbColumn(columnName, type, typeName, schema))
+                }
+                tables.add(tb)
+            }
+            metadata.tables.addAll(tables)
         }
         ConnectionManager.disposeConnection(connection)
-        return metadata
+        metadata
     }
 
-    fun loadTables(file: VirtualFile) : List<String> {
+    suspend fun loadTables(file: VirtualFile) : List<String> = withContext(context = Dispatchers.IO) {
         val connection = ConnectionManager.createConnection(file)
         val result = mutableListOf<String>()
         connection?.let {
@@ -37,10 +52,10 @@ object SqliteModel {
             }
         }
         ConnectionManager.disposeConnection(connection)
-        return result
+        result
     }
 
-    fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) : DbTableInstance {
+    suspend fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) : DbTableInstance = withContext(context = Dispatchers.IO) {
         val columns = mutableListOf<DbColumn>()
         val rows = mutableListOf<DbRow>()
         var totalCount = 0
@@ -50,7 +65,9 @@ object SqliteModel {
             while (columnResult.next()) {
                 val columnName = columnResult.getString("COLUMN_NAME")
                 val type = columnResult.getInt("DATA_TYPE")
-                columns.add(DbColumn(columnName, type))
+                val typeName = columnResult.getString("TYPE_NAME")
+                val schema = getAllSchema(columnResult)
+                columns.add(DbColumn(columnName, type, typeName, schema))
             }
 
             val statement = it.createStatement()
@@ -80,6 +97,20 @@ object SqliteModel {
             totalCount = countResult.getInt(1)
         }
         ConnectionManager.disposeConnection(connection)
-        return DbTableInstance(columns, rows, rows.size, page, totalCount)
+        DbTableInstance(columns, rows, rows.size, page, totalCount)
+    }
+
+    private fun getAllSchema(resultSet: ResultSet): String {
+        val nullable = resultSet.getBoolean("NULLABLE")
+        val nullableString = if (nullable) "" else "NOT NULL"
+        var def = resultSet.getString("COLUMN_DEF")
+        def = if (def == null || def.isEmpty()) {
+            ""
+        } else {
+            "DEFAULT $def"
+        }
+        val autoIncrement = resultSet.getBoolean("IS_AUTOINCREMENT")
+        val autoIncString = if (autoIncrement) "AUTO INCREMENT" else ""
+        return "$nullableString $def $autoIncString"
     }
 }

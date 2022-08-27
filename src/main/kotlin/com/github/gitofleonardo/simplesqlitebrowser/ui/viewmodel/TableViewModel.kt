@@ -16,7 +16,7 @@ class TableViewModel(private val dbFile: VirtualFile) : ViewModel {
     var currentPage: Int = 1
     var pageCount: Int = DEFAULT_PGE_COUNT
     var currentTableName: String? = null
-    var totalPages: Int = 0
+    var totalPages: Int = 1
     var totalCount: Int = 0
 
     val tables = LiveData<List<String>>()
@@ -69,14 +69,18 @@ class TableViewModel(private val dbFile: VirtualFile) : ViewModel {
     }
 
     private fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) {
-        val result = model.loadTableData(file, tableName, pageCount, page)
-        totalCount = result.totalCount
-        totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
-        tableData.value = result
+        viewModelScope.launch {
+            val result = model.loadTableData(file, tableName, pageCount, page)
+            totalCount = result.totalCount
+            totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
+            tableData.value = result
+        }
     }
 
     fun loadTables() {
-        val tbs = model.loadTables(dbFile)
-        tables.value = tbs
+        viewModelScope.launch {
+            val tbs = model.loadTables(dbFile)
+            tables.value = tbs
+        }
     }
 }
