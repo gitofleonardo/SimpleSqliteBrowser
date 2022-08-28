@@ -10,3 +10,6 @@
 - View columns and rows data of table
 - Blob icon can be previewed as image
 
+## [1.0.1]
+### Added
+- Change coroutine dispatcher from `MainScope()` to a custom dispatch with `Swing` context
