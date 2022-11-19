@@ -71,7 +71,7 @@ object SqliteModel {
             }
 
             val statement = it.createStatement()
-            val rowResult = statement.executeQuery("SELECT * FROM $tableName LIMIT $pageCount OFFSET ${pageCount * (page - 1)}")
+            val rowResult = statement.executeQuery("SELECT * FROM \"$tableName\" LIMIT $pageCount OFFSET ${pageCount * (page - 1)}")
             val rowMeta = rowResult.metaData
             while (rowResult.next()) {
                 val dbRows = mutableListOf<DbRow.RowData>()
@@ -92,7 +92,7 @@ object SqliteModel {
                 rows.add(dbRow)
             }
 
-            val countResult = statement.executeQuery("SELECT COUNT(*) FROM $tableName")
+            val countResult = statement.executeQuery("SELECT COUNT(*) FROM \"$tableName\"")
             countResult.next()
             totalCount = countResult.getInt(1)
         }
