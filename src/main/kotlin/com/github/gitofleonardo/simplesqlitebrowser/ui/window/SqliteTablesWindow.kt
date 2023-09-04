@@ -7,6 +7,7 @@ import com.github.gitofleonardo.simplesqlitebrowser.model.SqliteModel
 import com.github.gitofleonardo.simplesqlitebrowser.tools.DatabaseTableCellRenderer
 import com.github.gitofleonardo.simplesqlitebrowser.tools.DatabaseTableModel
 import com.github.gitofleonardo.simplesqlitebrowser.ui.TabbedChildView
+import com.github.gitofleonardo.simplesqlitebrowser.ui.view.BeeplessFormattedTextView
 import com.github.gitofleonardo.simplesqlitebrowser.ui.viewmodel.TableViewModel
 import com.intellij.openapi.ui.ComboBox
 import com.intellij.openapi.vfs.VirtualFile
@@ -40,7 +41,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
     private lateinit var tableComboBox: ComboBox<Any>
     private lateinit var panelPageJump: JPanel
     private lateinit var pageTitle: JLabel
-    private lateinit var pageInputField: JFormattedTextField
+    private lateinit var pageInputField: BeeplessFormattedTextView
     private lateinit var jumpButton: JButton
     private lateinit var panelPageSwitch: JPanel
     private lateinit var firstPageBtn: JButton
@@ -200,7 +201,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         pageTitle = JLabel()
         pageTitle.text = "Page:"
         panelPageJump.add(pageTitle)
-        pageInputField = JFormattedTextField(NumberFormatter(NumberFormat.getIntegerInstance()).apply {
+        pageInputField = BeeplessFormattedTextView(NumberFormatter(NumberFormat.getIntegerInstance()).apply {
             allowsInvalid = false
             minimum = 1
         })
