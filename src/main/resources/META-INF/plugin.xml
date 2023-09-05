@@ -1,6 +1,5 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <idea-version since-build="201.*"/>
     <id>com.github.gitofleonardo.simplesqlitebrowser</id>
     <name>SimpleSqliteBrowser</name>
     <vendor email="hvangchengxi@outlook.com" url="https://github.com/gitofleonardo">gitofleonardo</vendor>
