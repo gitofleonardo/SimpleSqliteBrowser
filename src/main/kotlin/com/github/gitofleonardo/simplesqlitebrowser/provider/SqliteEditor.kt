@@ -13,12 +13,13 @@ import javax.swing.JComponent
 private const val NAME = "SqliteEditor"
 
 class SqliteEditor(private val proj: Project, private val dbFile: VirtualFile) : UserDataHolderBase(), FileEditor {
+    private val mainWindow by lazy { SqliteBrowserMainWindow(dbFile) }
 
     override fun dispose() {
     }
 
     override fun getComponent(): JComponent {
-        return SqliteBrowserMainWindow(dbFile)
+        return mainWindow
     }
 
     override fun getPreferredFocusedComponent(): JComponent? {
