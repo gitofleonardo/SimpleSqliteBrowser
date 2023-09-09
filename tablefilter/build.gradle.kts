@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.github.gitofleonardo"
-version = "1.0.4"
+version = "1.0.0"
 
 repositories {
     mavenCentral()
