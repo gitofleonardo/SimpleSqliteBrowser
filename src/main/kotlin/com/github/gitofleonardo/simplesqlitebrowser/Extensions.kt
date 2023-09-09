@@ -1,6 +1,7 @@
 package com.github.gitofleonardo.simplesqlitebrowser
 
 import com.github.gitofleonardo.simplesqlitebrowser.mvvm.ViewModel
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.ui.ComboBox
 import kotlinx.coroutines.*
 import kotlinx.coroutines.swing.Swing
@@ -12,7 +13,7 @@ import kotlin.coroutines.CoroutineContext
 val ViewModel.viewModelScope: CoroutineScope
     get() = object : CoroutineScope {
         override val coroutineContext: CoroutineContext
-            get() = Dispatchers.Swing
+            get() = Dispatchers.Default
     }
 
 inline fun <reified T> ComboBox<T>.addOnItemChangeListener(crossinline listener: (T) -> Unit) {
