@@ -33,6 +33,10 @@ the database file to open it in your `Android Studio`-`Device File Explorer` wit
 
 ---
 
+## Credits
+
++ [tablefilter-swing](https://github.com/coderazzi/tablefilter-swing) of [coderazzi](https://github.com/coderazzi), for filtering table column results.
+
 ## License
 
 ```

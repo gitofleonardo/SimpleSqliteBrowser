@@ -16,6 +16,8 @@ import com.intellij.ui.table.JBTable
 import com.intellij.uiDesigner.core.GridConstraints
 import com.intellij.uiDesigner.core.GridLayoutManager
 import com.intellij.uiDesigner.core.Spacer
+import net.coderazzi.filters.gui.AutoChoices
+import net.coderazzi.filters.gui.TableFilterHeader
 import org.jdesktop.swingx.combobox.ListComboBoxModel
 import java.awt.*
 import java.awt.event.ActionEvent
@@ -66,6 +68,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
     private lateinit var tableModel: DatabaseTableModel
     private val tables = mutableListOf<String>()
     private val tableComboModel = ListComboBoxModel(tables)
+    private val tableFilterHeader = TableFilterHeader()
 
     init {
         setupUI()
@@ -203,7 +206,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         panelPageJump.add(pageTitle)
         pageInputField = BeeplessFormattedTextView(NumberFormatter(NumberFormat.getIntegerInstance()).apply {
             allowsInvalid = false
-            minimum = 1
+            minimum = 0
         })
         pageInputField.preferredSize = Dimension(100, 30)
         pageInputField.text = "0"
@@ -245,6 +248,14 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         dataTable.model = tableModel
         dataTable.autoCreateRowSorter = true
         dataTable.setDefaultRenderer(Any::class.java, DatabaseTableCellRenderer())
+        tableFilterHeader.apply {
+            this.table = dataTable
+            this.autoChoices = AutoChoices.DISABLED
+            this.isFilterOnUpdates = true
+            this.isAdaptiveChoices = false
+            this.isInstantFiltering = true
+            this.isChoicesEnable = false
+        }
         dataTable.tableHeader.reorderingAllowed = false
         dataTable.maximumSize = Dimension(40, 40)
         dataTable.fillsViewportHeight = true
