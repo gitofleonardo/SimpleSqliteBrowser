@@ -2,15 +2,11 @@ package com.github.gitofleonardo.simplesqlitebrowser.tools
 
 import com.github.gitofleonardo.simplesqlitebrowser.data.DbRow
 import com.github.gitofleonardo.simplesqlitebrowser.data.DbTableInstance
-import java.sql.Types
-import javax.swing.JTable
-import javax.swing.event.TableModelListener
-import javax.swing.table.TableModel
+import javax.swing.table.AbstractTableModel
 
 class DatabaseTableModel(
-    private val dbTableData: DbTableInstance,
-) : TableModel {
-    private val modelListeners: ArrayList<TableModelListener?> = ArrayList()
+        private val dbTableData: DbTableInstance,
+) : AbstractTableModel() {
 
     override fun getRowCount(): Int = dbTableData.rows.size
 
@@ -26,18 +22,6 @@ class DatabaseTableModel(
 
     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
         return dbTableData.rows[rowIndex].rowData[columnIndex]
-    }
-
-    override fun setValueAt(aValue: Any?, rowIndex: Int, columnIndex: Int) {
-        // TODO Modify database
-    }
-
-    override fun addTableModelListener(l: TableModelListener?) {
-        modelListeners.add(l)
-    }
-
-    override fun removeTableModelListener(l: TableModelListener?) {
-        modelListeners.remove(l)
     }
 
     fun checkIndexRange(rowIndex: Int, columnIndex: Int): Boolean {

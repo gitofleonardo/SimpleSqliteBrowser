@@ -4,9 +4,10 @@ import com.github.gitofleonardo.simplesqlitebrowser.data.SqliteMetadata
 import com.github.gitofleonardo.simplesqlitebrowser.model.SqliteModel
 import com.github.gitofleonardo.simplesqlitebrowser.mvvm.LiveData
 import com.github.gitofleonardo.simplesqlitebrowser.mvvm.ViewModel
-import com.github.gitofleonardo.simplesqlitebrowser.viewModelScope
 import com.intellij.openapi.vfs.VirtualFile
-import kotlinx.coroutines.launch
+import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.schedulers.Schedulers
+import javax.swing.SwingUtilities
 
 class MetadataViewModel : ViewModel {
     private val model = SqliteModel
@@ -14,9 +15,15 @@ class MetadataViewModel : ViewModel {
     val metadata: LiveData<SqliteMetadata> = LiveData()
 
     fun loadMetaData(file: VirtualFile) {
-        viewModelScope.launch {
-            val md = model.loadMetaData(file)
-            metadata.value = md
-        }
+        Observable
+                .create { emitter ->
+                    emitter.onNext(model.loadMetaData(file))
+                }
+                .subscribeOn(Schedulers.io())
+                .subscribe {
+                    SwingUtilities.invokeLater {
+                        metadata.value = it
+                    }
+                }
     }
 }

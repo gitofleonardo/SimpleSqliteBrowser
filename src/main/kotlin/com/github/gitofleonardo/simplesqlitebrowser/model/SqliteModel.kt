@@ -2,8 +2,6 @@ package com.github.gitofleonardo.simplesqlitebrowser.model
 
 import com.github.gitofleonardo.simplesqlitebrowser.data.*
 import com.intellij.openapi.vfs.VirtualFile
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.sql.ResultSet
 import java.sql.Types
 
@@ -11,7 +9,7 @@ object SqliteModel {
     const val NULL = "null"
     const val BLOB = "BLOB"
 
-    suspend fun loadMetaData(file: VirtualFile) : SqliteMetadata = withContext(context = Dispatchers.IO) {
+    fun loadMetaData(file: VirtualFile) : SqliteMetadata {
         val connection = ConnectionManager.createConnection(file)
         val metadata = SqliteMetadata()
         connection?.let {
@@ -38,10 +36,10 @@ object SqliteModel {
             metadata.tables.addAll(tables)
         }
         ConnectionManager.disposeConnection(connection)
-        metadata
+        return metadata
     }
 
-    suspend fun loadTables(file: VirtualFile) : List<String> = withContext(context = Dispatchers.IO) {
+    fun loadTables(file: VirtualFile) : List<String> {
         val connection = ConnectionManager.createConnection(file)
         val result = mutableListOf<String>()
         connection?.let {
@@ -52,10 +50,10 @@ object SqliteModel {
             }
         }
         ConnectionManager.disposeConnection(connection)
-        result
+        return result
     }
 
-    suspend fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) : DbTableInstance = withContext(context = Dispatchers.IO) {
+    fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) : DbTableInstance {
         val columns = mutableListOf<DbColumn>()
         val rows = mutableListOf<DbRow>()
         var totalCount = 0
@@ -97,7 +95,7 @@ object SqliteModel {
             totalCount = countResult.getInt(1)
         }
         ConnectionManager.disposeConnection(connection)
-        DbTableInstance(columns, rows, rows.size, page, totalCount)
+        return DbTableInstance(columns, rows, rows.size, page, totalCount)
     }
 
     private fun getAllSchema(resultSet: ResultSet): String {

@@ -4,9 +4,10 @@ import com.github.gitofleonardo.simplesqlitebrowser.data.DbTableInstance
 import com.github.gitofleonardo.simplesqlitebrowser.model.SqliteModel
 import com.github.gitofleonardo.simplesqlitebrowser.mvvm.LiveData
 import com.github.gitofleonardo.simplesqlitebrowser.mvvm.ViewModel
-import com.github.gitofleonardo.simplesqlitebrowser.viewModelScope
 import com.intellij.openapi.vfs.VirtualFile
-import kotlinx.coroutines.launch
+import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.schedulers.Schedulers
+import javax.swing.SwingUtilities
 import kotlin.math.ceil
 
 private const val DEFAULT_PGE_COUNT = 50
@@ -69,18 +70,31 @@ class TableViewModel(private val dbFile: VirtualFile) : ViewModel {
     }
 
     private fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) {
-        viewModelScope.launch {
-            val result = model.loadTableData(file, tableName, pageCount, page)
-            totalCount = result.totalCount
-            totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
-            tableData.value = result
-        }
+        Observable
+                .create { emitter ->
+                    emitter.onNext(model.loadTableData(file, tableName, pageCount, page))
+                }
+                .subscribeOn(Schedulers.io())
+                .subscribe { result ->
+                    SwingUtilities.invokeLater {
+                        totalCount = result.totalCount
+                        totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
+                        tableData.value = result
+                    }
+                }
+
     }
 
     fun loadTables() {
-        viewModelScope.launch {
-            val tbs = model.loadTables(dbFile)
-            tables.value = tbs
-        }
+        Observable
+                .create { emitter->
+                    emitter.onNext(model.loadTables(dbFile))
+                }
+                .subscribeOn(Schedulers.io())
+                .subscribe {  tbls ->
+                    SwingUtilities.invokeLater {
+                        tables.value = tbls
+                    }
+                }
     }
 }
