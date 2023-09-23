@@ -23,6 +23,10 @@ object SqliteModel {
             while (tableResult.next()) {
                 val tb = DbTable()
                 tb.tableName = tableResult.getString("TABLE_NAME")
+                val tableType = tableResult.getString("TABLE_TYPE")
+                if ("TABLE" != tableType) {
+                    continue
+                }
                 val columnResult = md.getColumns(null, null, tb.tableName, null)
                 while (columnResult.next()) {
                     val columnName = columnResult.getString("COLUMN_NAME")
@@ -46,7 +50,10 @@ object SqliteModel {
             val resultSet = it.metaData.getTables(null, null, "%", null)
             while (resultSet.next()) {
                 val table = resultSet.getString("TABLE_NAME")
-                result.add(table)
+                val type = resultSet.getString("TABLE_TYPE")
+                if ("TABLE" == type) {
+                    result.add(table)
+                }
             }
         }
         ConnectionManager.disposeConnection(connection)
