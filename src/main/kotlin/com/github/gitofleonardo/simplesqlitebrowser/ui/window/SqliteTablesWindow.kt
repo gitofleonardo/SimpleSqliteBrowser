@@ -3,7 +3,6 @@ package com.github.gitofleonardo.simplesqlitebrowser.ui.window
 import com.github.gitofleonardo.simplesqlitebrowser.*
 import com.github.gitofleonardo.simplesqlitebrowser.data.DbRow
 import com.github.gitofleonardo.simplesqlitebrowser.data.DbTableInstance
-import com.github.gitofleonardo.simplesqlitebrowser.model.SqliteModel
 import com.github.gitofleonardo.simplesqlitebrowser.tools.DatabaseTableCellRenderer
 import com.github.gitofleonardo.simplesqlitebrowser.tools.DatabaseTableModel
 import com.github.gitofleonardo.simplesqlitebrowser.ui.TabbedChildView
@@ -22,12 +21,9 @@ import org.jdesktop.swingx.combobox.ListComboBoxModel
 import java.awt.*
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
-import java.awt.image.BufferedImage
-import java.sql.Blob
 import java.sql.Types
 import java.text.NumberFormat
 import javax.swing.*
-import javax.swing.table.TableRowSorter
 import javax.swing.text.NumberFormatter
 
 private const val TITLE = "Tables"
@@ -60,6 +56,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
     private lateinit var dbValueField: JTextArea
     private lateinit var imageLabel: JLabel
     private lateinit var dataHolderPanel: JPanel
+    private lateinit var imageScrollContainer: JScrollPane
     // @}
 
     private val emptyTablePage = DbTableInstance()
@@ -151,26 +148,29 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
     }
 
     private fun setCurrentImageInfo(bytes: ByteArray) {
+        if (bytes.isEmpty()) {
+            imageLabel.icon = null
+            dbValueInfoLabel.text = ""
+            return
+        }
         val image = ImageIcon(bytes)
         imageLabel.icon = image
-
-        dbValueInfoLabel.text = "Size: ${bytes.toSizeString()}"
+        dbValueInfoLabel.text = "Size: ${bytes.toSizeString()} (${image.iconWidth}x${image.iconHeight} pixels)"
     }
 
     private fun setCurrentTextInfo(text: String) {
         dbValueField.text = text
-
         dbValueInfoLabel.text = "Length: ${text.length}"
     }
 
     private fun updateDataDisplayPanel(dataType: Int) {
         when (dataType) {
             Types.BLOB -> {
-                imageLabel.isVisible = true
+                imageScrollContainer.isVisible = true
                 dbValueField.isVisible = false
             }
             else -> {
-                imageLabel.isVisible = false
+                imageScrollContainer.isVisible = false
                 dbValueField.isVisible = true
             }
         }
@@ -282,8 +282,11 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         bottomToolPanel.add(dataHolderPanel, BorderLayout.WEST)
         imageLabel = JLabel()
         imageLabel.isEnabled = true
-        imageLabel.isVisible = false
-        dataHolderPanel.add(imageLabel, "Card1")
+        imageLabel.isVisible = true
+        imageScrollContainer = JScrollPane(imageLabel, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED).apply {
+        }
+        dataHolderPanel.add(imageScrollContainer, "Card1")
         dbValueField = JTextArea()
         dbValueField.isVisible = true
         dbValueField.lineWrap = true
