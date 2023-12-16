@@ -16,6 +16,8 @@ import com.intellij.uiDesigner.core.GridConstraints
 import com.intellij.uiDesigner.core.GridLayoutManager
 import com.intellij.uiDesigner.core.Spacer
 import net.coderazzi.filters.gui.AutoChoices
+import net.coderazzi.filters.gui.IFilterEditor
+import net.coderazzi.filters.gui.IFilterHeaderObserver
 import net.coderazzi.filters.gui.TableFilterHeader
 import org.jdesktop.swingx.combobox.ListComboBoxModel
 import java.awt.*
@@ -24,11 +26,12 @@ import java.awt.event.KeyEvent
 import java.sql.Types
 import java.text.NumberFormat
 import javax.swing.*
+import javax.swing.table.TableColumn
 import javax.swing.text.NumberFormatter
 
 private const val TITLE = "Tables"
 
-class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
+class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), IFilterHeaderObserver {
     override val title: String = TITLE
     override val icon: Icon? = null
 
@@ -66,6 +69,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
     private val tables = mutableListOf<String>()
     private val tableComboModel = ListComboBoxModel(tables)
     private val tableFilterHeader = TableFilterHeader()
+    private val filterHeaderCache = mutableMapOf<String, String>()
 
     init {
         setupUI()
@@ -76,6 +80,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
 
     private fun initListeners() {
         tableComboBox.addOnItemChangeListener {
+            filterHeaderCache.clear()
             viewModel.resetTableData(it as String)
         }
         pageInputField.addOnKeyEventListener {
@@ -176,6 +181,30 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
         }
     }
 
+    override fun tableFilterEditorCreated(
+        header: TableFilterHeader,
+        editor: IFilterEditor,
+        tableColumn: TableColumn
+    ) {
+        val columnName = tableColumn.headerValue.toString()
+        val cachedFilter = filterHeaderCache[columnName] ?: return
+        editor.content = cachedFilter
+    }
+
+    override fun tableFilterEditorExcluded(
+        header: TableFilterHeader?,
+        editor: IFilterEditor?,
+        tableColumn: TableColumn?
+    ) { }
+
+    override fun tableFilterUpdated(header: TableFilterHeader,
+                                    editor: IFilterEditor,
+                                    tableColumn: TableColumn) {
+        val columnName = tableColumn.headerValue.toString()
+        val headerContent = editor.content.toString()
+        filterHeaderCache[columnName] = headerContent
+    }
+
     // UI configuration begin {@
     private fun setupUI() {
         rootPanel = JPanel()
@@ -255,6 +284,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView() {
             this.isAdaptiveChoices = false
             this.isInstantFiltering = true
             this.isChoicesEnable = false
+            this.addHeaderObserver(this@SqliteTablesWindow)
         }
         dataTable.tableHeader.reorderingAllowed = false
         dataTable.maximumSize = Dimension(40, 40)
