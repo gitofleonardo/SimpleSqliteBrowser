@@ -11,6 +11,8 @@ plugins {
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
+
+    id("org.jetbrains.compose")
 }
 
 group = properties("pluginGroup").get()
@@ -19,6 +21,8 @@ version = properties("pluginVersion").get()
 // Configure project's dependencies
 repositories {
     mavenCentral()
+    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
+    google()
 }
 
 dependencies {
@@ -26,6 +30,7 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.43.0.0")
     implementation("io.reactivex.rxjava3:rxjava:3.1.7")
     implementation(project(":tablefilter"))
+    implementation(compose.desktop.currentOs)
 }
 
 // Set the JVM language level used to compile sources and generate files - Java 11 is required since 2020.3
