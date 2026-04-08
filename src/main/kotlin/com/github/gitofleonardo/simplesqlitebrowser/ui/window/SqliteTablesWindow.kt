@@ -26,6 +26,7 @@ import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
+import java.nio.file.Files
 import java.sql.Types
 import java.text.NumberFormat
 import java.util.Base64
@@ -41,6 +42,8 @@ private const val BASE64_PREVIEW_MAX_LENGTH = 8192
 private const val TABLE_CARD_DATA = "TABLE_DATA"
 private const val TABLE_CARD_LOADING = "TABLE_LOADING"
 private const val COPY_BASE64_TEXT = "Copy Base64"
+private const val SAVE_IMAGE_TEXT = "Save Image"
+private const val SAVE_BLOB_TEXT = "Save BLOB"
 
 class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), IFilterHeaderObserver {
     override val title: String = TITLE
@@ -76,6 +79,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
     private lateinit var dataHolderPanel: JPanel
     private lateinit var imageScrollContainer: JScrollPane
     private lateinit var copyBase64Button: JButton
+    private lateinit var saveBlobButton: JButton
     // @}
 
     private val emptyTablePage = DbTableInstance()
@@ -88,6 +92,8 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
     private val filterHeaderCache = mutableMapOf<String, String>()
     private val filterEditors = mutableMapOf<String, IFilterEditor>()
     private var currentFullBase64: String? = null
+    private var currentBlobBytes: ByteArray? = null
+    private var currentBlobDefaultFileName: String = "blob.bin"
 
     init {
         setupUI()
@@ -128,6 +134,9 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
         }
         resetFiltersButton.addActionListener {
             resetAllFilters()
+        }
+        saveBlobButton.addActionListener {
+            saveCurrentBlobToLocal()
         }
         dataTable.addOnTouchListener {
             updateTableSelection()
@@ -183,7 +192,7 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
                     updateDataDisplayPanel(showImage = true)
                 } else {
                     val encodedText = if (blob.isEmpty()) "" else Base64.getEncoder().encodeToString(blob)
-                    setCurrentBase64Info(encodedText)
+                    setCurrentBase64Info(blob, encodedText)
                     updateDataDisplayPanel(showImage = false)
                 }
             }
@@ -197,6 +206,10 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
     private fun setCurrentImageInfo(bytes: ByteArray, image: BufferedImage) {
         currentFullBase64 = null
         copyBase64Button.isVisible = false
+        currentBlobBytes = if (bytes.isEmpty()) null else bytes
+        currentBlobDefaultFileName = bytes.guessImageDefaultFileName() ?: "image.bin"
+        saveBlobButton.isVisible = bytes.isNotEmpty()
+        saveBlobButton.text = SAVE_IMAGE_TEXT
         if (bytes.isEmpty()) {
             imageLabel.icon = null
             dbValueInfoLabel.text = ""
@@ -210,13 +223,21 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
     private fun setCurrentTextInfo(text: String) {
         currentFullBase64 = null
         copyBase64Button.isVisible = false
+        currentBlobBytes = null
+        currentBlobDefaultFileName = "blob.bin"
+        saveBlobButton.isVisible = false
+        saveBlobButton.text = SAVE_BLOB_TEXT
         dbValueField.text = text
         dbValueInfoLabel.text = "Length: ${text.length}"
     }
 
-    private fun setCurrentBase64Info(base64Text: String) {
+    private fun setCurrentBase64Info(blobBytes: ByteArray, base64Text: String) {
         currentFullBase64 = base64Text
+        currentBlobBytes = blobBytes
+        currentBlobDefaultFileName = "blob.bin"
         copyBase64Button.isVisible = base64Text.isNotEmpty()
+        saveBlobButton.isVisible = blobBytes.isNotEmpty()
+        saveBlobButton.text = SAVE_BLOB_TEXT
         if (base64Text.length <= BASE64_PREVIEW_MAX_LENGTH) {
             dbValueField.text = base64Text
             dbValueInfoLabel.text = "Base64 length: ${base64Text.length}"
@@ -281,6 +302,47 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
     private fun resetAllFilters() {
         filterHeaderCache.clear()
         filterEditors.values.forEach { it.content = "" }
+    }
+
+    private fun saveCurrentBlobToLocal() {
+        val blob = currentBlobBytes ?: return
+        val chooser = JFileChooser().apply {
+            selectedFile = java.io.File(currentBlobDefaultFileName)
+        }
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return
+        }
+        runCatching {
+            Files.write(chooser.selectedFile.toPath(), blob)
+        }.onSuccess {
+            JOptionPane.showMessageDialog(
+                this,
+                "Saved to: ${chooser.selectedFile.absolutePath}",
+                "Save Successful",
+                JOptionPane.INFORMATION_MESSAGE
+            )
+        }.onFailure {
+            JOptionPane.showMessageDialog(this, "Failed to save BLOB: ${it.message}", "Save Error", JOptionPane.ERROR_MESSAGE)
+        }
+    }
+
+    private fun ByteArray.guessImageDefaultFileName(): String? {
+        if (isEmpty()) {
+            return null
+        }
+        val formatName = runCatching {
+            ByteArrayInputStream(this).use { input ->
+                ImageIO.createImageInputStream(input).use { imageInput ->
+                    val readers = ImageIO.getImageReaders(imageInput)
+                    if (readers.hasNext()) readers.next().formatName else null
+                }
+            }
+        }.getOrNull() ?: return null
+        val extension = when (formatName.lowercase()) {
+            "jpeg" -> "jpg"
+            else -> formatName.lowercase()
+        }
+        return "image.$extension"
     }
 
     // UI configuration begin {@
@@ -433,6 +495,10 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
             }
         }
         bottomInfoPanel.add(copyBase64Button)
+        saveBlobButton = JButton(SAVE_BLOB_TEXT).apply {
+            isVisible = false
+        }
+        bottomInfoPanel.add(saveBlobButton)
 
         layout = BorderLayout()
         add(rootPanel)
