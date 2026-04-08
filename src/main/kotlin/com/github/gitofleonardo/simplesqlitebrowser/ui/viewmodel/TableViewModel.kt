@@ -8,6 +8,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import io.reactivex.rxjava3.core.Observable
 import io.reactivex.rxjava3.schedulers.Schedulers
 import javax.swing.SwingUtilities
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.ceil
 
 private const val DEFAULT_PGE_COUNT = 50
@@ -19,9 +20,11 @@ class TableViewModel(private val dbFile: VirtualFile) : ViewModel {
     var currentTableName: String? = null
     var totalPages: Int = 1
     var totalCount: Int = 0
+    private val loadingTaskCount = AtomicInteger(0)
 
     val tables = LiveData<List<String>>()
     val tableData = LiveData<DbTableInstance>()
+    val isLoading = LiveData<Boolean>()
 
     fun resetTableData() {
         currentTableName?.let { resetTableData(it) }
@@ -70,31 +73,62 @@ class TableViewModel(private val dbFile: VirtualFile) : ViewModel {
     }
 
     private fun loadTableData(file: VirtualFile, tableName: String, pageCount: Int, page: Int) {
+        increaseLoading()
         Observable
-                .create { emitter ->
-                    emitter.onNext(model.loadTableData(file, tableName, pageCount, page))
-                }
+                .fromCallable { model.loadTableData(file, tableName, pageCount, page) }
                 .subscribeOn(Schedulers.io())
-                .subscribe { result ->
-                    SwingUtilities.invokeLater {
-                        totalCount = result.totalCount
-                        totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
-                        tableData.value = result
-                    }
+                .doFinally {
+                    decreaseLoading()
                 }
+                .subscribe(
+                    { result ->
+                        SwingUtilities.invokeLater {
+                            totalCount = result.totalCount
+                            totalPages = ceil(totalCount.toFloat() / pageCount).toInt()
+                            tableData.value = result
+                        }
+                    },
+                    { _ ->
+                        // keep silent for now; loading is handled by doFinally.
+                    }
+                )
 
     }
 
     fun loadTables() {
+        increaseLoading()
         Observable
-                .create { emitter->
-                    emitter.onNext(model.loadTables(dbFile))
-                }
+                .fromCallable { model.loadTables(dbFile) }
                 .subscribeOn(Schedulers.io())
-                .subscribe {  tbls ->
-                    SwingUtilities.invokeLater {
-                        tables.value = tbls
-                    }
+                .doFinally {
+                    decreaseLoading()
                 }
+                .subscribe(
+                    { tbls ->
+                        SwingUtilities.invokeLater {
+                            tables.value = tbls
+                        }
+                    },
+                    { _ ->
+                        // keep silent for now; loading is handled by doFinally.
+                    }
+                )
+    }
+
+    private fun increaseLoading() {
+        if (loadingTaskCount.incrementAndGet() == 1) {
+            SwingUtilities.invokeLater {
+                isLoading.value = true
+            }
+        }
+    }
+
+    private fun decreaseLoading() {
+        if (loadingTaskCount.decrementAndGet() <= 0) {
+            loadingTaskCount.set(0)
+            SwingUtilities.invokeLater {
+                isLoading.value = false
+            }
+        }
     }
 }
