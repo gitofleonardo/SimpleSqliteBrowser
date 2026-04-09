@@ -71,6 +71,13 @@ tasks {
         gradleVersion = properties("gradleVersion").get()
     }
 
+    // buildSearchableOptions starts a headless IDE; Android Studio (platformType AI) can crash there with
+    // "call to AnalyticsSettings before initialization" (org.jetbrains.android). Safe to skip unless the
+    // plugin contributes Settings searchable options.
+    buildSearchableOptions {
+        enabled = false
+    }
+
     patchPluginXml {
         version = properties("pluginVersion")
         sinceBuild = properties("pluginSinceBuild")
