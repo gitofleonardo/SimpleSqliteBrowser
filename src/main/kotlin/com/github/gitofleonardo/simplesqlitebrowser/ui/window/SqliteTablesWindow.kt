@@ -23,6 +23,8 @@ import org.jdesktop.swingx.combobox.ListComboBoxModel
 import java.awt.*
 import java.awt.datatransfer.StringSelection
 import java.awt.event.ActionEvent
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.KeyEvent
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
@@ -41,9 +43,14 @@ private const val IMAGE_PREVIEW_MAX_HEIGHT = 180
 private const val BASE64_PREVIEW_MAX_LENGTH = 8192
 private const val TABLE_CARD_DATA = "TABLE_DATA"
 private const val TABLE_CARD_LOADING = "TABLE_LOADING"
+private const val DATA_CARD_IMAGE = "Card1"
+private const val DATA_CARD_TEXT = "Card2"
 private const val COPY_BASE64_TEXT = "Copy Base64"
 private const val SAVE_IMAGE_TEXT = "Save Image"
 private const val SAVE_BLOB_TEXT = "Save BLOB"
+private const val IMAGE_ZOOM_STEP_PERCENT = 25
+private const val IMAGE_ZOOM_MIN_PERCENT = 25
+private const val IMAGE_ZOOM_MAX_PERCENT = 400
 
 class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), IFilterHeaderObserver {
     override val title: String = TITLE
@@ -76,6 +83,13 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
     private lateinit var dbValueField: JTextArea
     private lateinit var textScrollContainer: JScrollPane
     private lateinit var imageLabel: JLabel
+    private lateinit var imageViewportCenteringPanel: JPanel
+    private lateinit var imagePreviewWrapper: JPanel
+    private lateinit var imageZoomPanel: JPanel
+    private lateinit var zoomOutButton: JButton
+    private lateinit var zoomInButton: JButton
+    private lateinit var zoomResetButton: JButton
+    private lateinit var zoomLabel: JLabel
     private lateinit var dataHolderPanel: JPanel
     private lateinit var imageScrollContainer: JScrollPane
     private lateinit var copyBase64Button: JButton
@@ -94,6 +108,8 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
     private var currentFullBase64: String? = null
     private var currentBlobBytes: ByteArray? = null
     private var currentBlobDefaultFileName: String = "blob.bin"
+    private var currentZoomSourceImage: BufferedImage? = null
+    private var imageZoomPercent: Int = 100
 
     init {
         setupUI()
@@ -137,6 +153,21 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
         }
         saveBlobButton.addActionListener {
             saveCurrentBlobToLocal()
+        }
+        zoomOutButton.addActionListener {
+            if (currentZoomSourceImage == null) return@addActionListener
+            imageZoomPercent = (imageZoomPercent - IMAGE_ZOOM_STEP_PERCENT).coerceAtLeast(IMAGE_ZOOM_MIN_PERCENT)
+            applyImageZoom()
+        }
+        zoomInButton.addActionListener {
+            if (currentZoomSourceImage == null) return@addActionListener
+            imageZoomPercent = (imageZoomPercent + IMAGE_ZOOM_STEP_PERCENT).coerceAtMost(IMAGE_ZOOM_MAX_PERCENT)
+            applyImageZoom()
+        }
+        zoomResetButton.addActionListener {
+            if (currentZoomSourceImage == null) return@addActionListener
+            imageZoomPercent = 100
+            applyImageZoom()
         }
         dataTable.addOnTouchListener {
             updateTableSelection()
@@ -211,12 +242,18 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
         saveBlobButton.isVisible = bytes.isNotEmpty()
         saveBlobButton.text = SAVE_IMAGE_TEXT
         if (bytes.isEmpty()) {
+            currentZoomSourceImage = null
+            imageZoomPercent = 100
             imageLabel.icon = null
+            imageZoomPanel.isVisible = false
+            refreshImageViewportCenteringPanel()
             dbValueInfoLabel.text = ""
             return
         }
-        val scaledImage = image.getScaledPreviewImage(IMAGE_PREVIEW_MAX_WIDTH, IMAGE_PREVIEW_MAX_HEIGHT)
-        imageLabel.icon = ImageIcon(scaledImage)
+        currentZoomSourceImage = image
+        imageZoomPercent = 100
+        imageZoomPanel.isVisible = true
+        applyImageZoom()
         dbValueInfoLabel.text = "Size: ${bytes.toSizeString()} (${image.width}x${image.height} pixels)"
     }
 
@@ -227,11 +264,15 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
         currentBlobDefaultFileName = "blob.bin"
         saveBlobButton.isVisible = false
         saveBlobButton.text = SAVE_BLOB_TEXT
+        currentZoomSourceImage = null
+        imageZoomPercent = 100
         dbValueField.text = text
         dbValueInfoLabel.text = "Length: ${text.length}"
     }
 
     private fun setCurrentBase64Info(blobBytes: ByteArray, base64Text: String) {
+        currentZoomSourceImage = null
+        imageZoomPercent = 100
         currentFullBase64 = base64Text
         currentBlobBytes = blobBytes
         currentBlobDefaultFileName = "blob.bin"
@@ -247,9 +288,48 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
         dbValueInfoLabel.text = "Base64 length: ${base64Text.length} (preview: $BASE64_PREVIEW_MAX_LENGTH)"
     }
 
+    private fun applyImageZoom() {
+        val source = currentZoomSourceImage ?: run {
+            imageLabel.icon = null
+            zoomLabel.text = "100%"
+            refreshImageViewportCenteringPanel()
+            return
+        }
+        val (fitW, fitH) = source.fitDimensions(IMAGE_PREVIEW_MAX_WIDTH, IMAGE_PREVIEW_MAX_HEIGHT)
+        val w = (fitW * imageZoomPercent / 100.0).toInt().coerceAtLeast(1)
+        val h = (fitH * imageZoomPercent / 100.0).toInt().coerceAtLeast(1)
+        val scaled = source.getScaledInstance(w, h, Image.SCALE_SMOOTH)
+        imageLabel.icon = ImageIcon(scaled)
+        zoomLabel.text = "${imageZoomPercent}%"
+        SwingUtilities.invokeLater { refreshImageViewportCenteringPanel() }
+    }
+
+    private fun refreshImageViewportCenteringPanel() {
+        if (!::imageViewportCenteringPanel.isInitialized || !::imageScrollContainer.isInitialized) {
+            return
+        }
+        val vp = imageScrollContainer.viewport.extentSize
+        if (vp.width <= 0 || vp.height <= 0) {
+            return
+        }
+        val icon = imageLabel.icon
+        val iw = icon?.iconWidth ?: 0
+        val ih = icon?.iconHeight ?: 0
+        imageViewportCenteringPanel.preferredSize = if (iw == 0 || ih == 0) {
+            Dimension(vp.width, vp.height)
+        } else {
+            Dimension(maxOf(vp.width, iw), maxOf(vp.height, ih))
+        }
+        imageViewportCenteringPanel.revalidate()
+    }
+
     private fun updateDataDisplayPanel(showImage: Boolean) {
-        imageScrollContainer.isVisible = showImage
-        textScrollContainer.isVisible = !showImage
+        val layout = dataHolderPanel.layout as CardLayout
+        if (showImage) {
+            layout.show(dataHolderPanel, DATA_CARD_IMAGE)
+        } else {
+            layout.show(dataHolderPanel, DATA_CARD_TEXT)
+        }
     }
 
     private fun decodeImage(bytes: ByteArray): BufferedImage? {
@@ -263,13 +343,13 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
         }.getOrNull()
     }
 
-    private fun BufferedImage.getScaledPreviewImage(maxWidth: Int, maxHeight: Int): Image {
+    private fun BufferedImage.fitDimensions(maxWidth: Int, maxHeight: Int): Pair<Int, Int> {
         val widthRatio = maxWidth.toDouble() / width
         val heightRatio = maxHeight.toDouble() / height
         val ratio = minOf(1.0, widthRatio, heightRatio)
         val targetWidth = (width * ratio).toInt().coerceAtLeast(1)
         val targetHeight = (height * ratio).toInt().coerceAtLeast(1)
-        return getScaledInstance(targetWidth, targetHeight, Image.SCALE_SMOOTH)
+        return targetWidth to targetHeight
     }
 
     override fun tableFilterEditorCreated(
@@ -458,17 +538,63 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
                 null, null, null, 0, false))
         dataHolderPanel = JPanel()
         dataHolderPanel.layout = CardLayout(0, 0)
-        dataHolderPanel.preferredSize = Dimension(400, 180)
+        dataHolderPanel.preferredSize = Dimension(400, 212)
         bottomToolPanel.add(dataHolderPanel, BorderLayout.WEST)
-        imageLabel = JLabel()
-        imageLabel.isEnabled = true
-        imageLabel.isVisible = true
-        imageScrollContainer = JScrollPane(imageLabel, ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED).apply {
+        imageLabel = JLabel().apply {
+            horizontalAlignment = SwingConstants.CENTER
+            verticalAlignment = SwingConstants.CENTER
+            isEnabled = true
+            isVisible = true
+        }
+        imageViewportCenteringPanel = JPanel(GridBagLayout()).apply {
+            isOpaque = false
+            add(
+                imageLabel,
+                GridBagConstraints().apply {
+                    gridx = 0
+                    gridy = 0
+                    weightx = 1.0
+                    weighty = 1.0
+                    anchor = GridBagConstraints.CENTER
+                }
+            )
+        }
+        imageScrollContainer = JScrollPane(
+            imageViewportCenteringPanel,
+            ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+            ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED
+        ).apply {
             preferredSize = Dimension(IMAGE_PREVIEW_MAX_WIDTH, IMAGE_PREVIEW_MAX_HEIGHT)
             minimumSize = Dimension(IMAGE_PREVIEW_MAX_WIDTH, IMAGE_PREVIEW_MAX_HEIGHT)
+            viewport.addComponentListener(object : ComponentAdapter() {
+                override fun componentResized(e: ComponentEvent?) {
+                    refreshImageViewportCenteringPanel()
+                }
+            })
         }
-        dataHolderPanel.add(imageScrollContainer, "Card1")
+        imageZoomPanel = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
+        zoomOutButton = JButton("-").apply {
+            preferredSize = Dimension(36, 26)
+            toolTipText = "Zoom out"
+        }
+        zoomLabel = JLabel("100%")
+        zoomInButton = JButton("+").apply {
+            preferredSize = Dimension(36, 26)
+            toolTipText = "Zoom in"
+        }
+        zoomResetButton = JButton("Fit").apply {
+            toolTipText = "Reset zoom to fit preview"
+        }
+        imageZoomPanel.add(JLabel("Zoom:"))
+        imageZoomPanel.add(zoomOutButton)
+        imageZoomPanel.add(zoomLabel)
+        imageZoomPanel.add(zoomInButton)
+        imageZoomPanel.add(zoomResetButton)
+        imageZoomPanel.isVisible = false
+        imagePreviewWrapper = JPanel(BorderLayout(0, 2))
+        imagePreviewWrapper.add(imageZoomPanel, BorderLayout.NORTH)
+        imagePreviewWrapper.add(imageScrollContainer, BorderLayout.CENTER)
+        dataHolderPanel.add(imagePreviewWrapper, DATA_CARD_IMAGE)
         dbValueField = JTextArea()
         dbValueField.isVisible = true
         dbValueField.lineWrap = true
@@ -481,7 +607,8 @@ class SqliteTablesWindow(private val dbFile: VirtualFile) : TabbedChildView(), I
             preferredSize = Dimension(400, IMAGE_PREVIEW_MAX_HEIGHT)
             minimumSize = Dimension(400, IMAGE_PREVIEW_MAX_HEIGHT)
         }
-        dataHolderPanel.add(textScrollContainer, "Card2")
+        dataHolderPanel.add(textScrollContainer, DATA_CARD_TEXT)
+        (dataHolderPanel.layout as CardLayout).show(dataHolderPanel, DATA_CARD_TEXT)
         bottomInfoPanel = JPanel()
         bottomInfoPanel.layout = FlowLayout(FlowLayout.LEFT, 5, 5)
         bottomToolPanel.add(bottomInfoPanel, BorderLayout.CENTER)
